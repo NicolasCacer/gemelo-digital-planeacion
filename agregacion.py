@@ -188,6 +188,10 @@ def planeacion_agregada_completa(
     fig.update_layout(
         title=f"Plan Agregado (Costo óptimo: ${costo_total:,.0f})",
         xaxis_title="Periodo", yaxis_title="Cantidad",
-        barmode='group', template="plotly_white"
+        barmode='group', template="plotly_white",
+        xaxis=dict(
+            tickmode='linear',     # asegura que cada tick se muestre
+            dtick=1                # cada 1 unidad en el eje x
+        )
     )
     return resultados, fig

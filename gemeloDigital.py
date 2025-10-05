@@ -3,6 +3,7 @@ import pandas as pd
 from demanda import generar_demanda_sarima, graficar_demanda_interactivo
 from agregacion import planeacion_agregada_completa
 from demanda import inventario_inicial
+from desagregacion import desagregar_produccion, grafica_consolidada
 
 def dashboard_streamlit():
     st.set_page_config(page_title="Gemelo Digital - Demanda y Agregación", layout="wide")
@@ -35,7 +36,18 @@ def dashboard_streamlit():
     st.subheader("Planeación agregada")
     st.dataframe(df_plan_agg)  # Ajusta tamaño
     st.plotly_chart(fig_df_plan_agg, use_container_width=True)
+    
+    df_prod,df_inv_desagg, df_resultado, fig_desagg = desagregar_produccion(demanda_df = edited_demanda, df_inventario_inicial = inventario_inicial(), resultados=df_plan_agg, num_per = num_per)
+    st.subheader("Planeación desagregada")
+    st.subheader("Producción desagregada")
+    st.dataframe(df_prod)
+    st.subheader("Inventario desagregado")
+    st.dataframe(df_inv_desagg)
+    st.plotly_chart(fig_desagg, use_container_width=True)
+    
+    fig_cons = grafica_consolidada(df_prod, df_inv_desagg, df_resultado, productos=df_demanda['bebida'].unique().tolist())
 
+    st.plotly_chart(fig_cons, use_container_width=True)
 
 
 
