@@ -1,5 +1,4 @@
 import pandas as pd
-import statsmodels
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 import plotly.graph_objects as go
 from plotly.colors import qualitative
