@@ -21,17 +21,10 @@ def dashboard_streamlit():
 
     # Sidebar
     st.sidebar.header("Parámetros Generales")
-    num_per = st.sidebar.number_input("Número de períodos a proyectar", min_value=1, max_value=48, value=1, step=1)
-
-    st.sidebar.header("Parámetros de Simulación de Producción")
-    num_lotes = st.sidebar.slider("Número de lotes", 1, 50, 10)
-    tamano_lote = st.sidebar.slider("Tamaño de lote (botellas)", 50, 500, 100)
-    num_mezcla = st.sidebar.slider("Equipos de mezcla", 1, 5, 2)
-    num_pasteurizacion = st.sidebar.slider("Equipos de pasteurización", 1, 5, 2)
-    num_llenado = st.sidebar.slider("Líneas de llenado", 1, 5, 2)
-    num_etiquetado = st.sidebar.slider("Estaciones de etiquetado", 1, 5, 2)
-    num_camaras = st.sidebar.slider("Cámaras de refrigeración", 1, 5, 1)
-
+    num_per = st.sidebar.slider("Número de períodos a proyectar", min_value=1, max_value=48, value=12, step=1)
+    tamano_lote = st.sidebar.slider("Tamaño de lote (unidades):", min_value=1, max_value=1000, value=100, step=10)
+    litros_por_unidad = st.sidebar.slider("litros por unidad", min_value=0.1, max_value=3.5, value=0.5, step=0.1)
+    
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Demanda",
         "📈 Planeación Agregada",
@@ -44,68 +37,170 @@ def dashboard_streamlit():
         st.subheader("Demanda proyectada por producto")
         df_demanda = generar_demanda_sarima(n_periodos=num_per)
         st.markdown("Edite los valores de demanda si desea ajustar la proyección antes de la planeación.")
-        edited_demanda = st.data_editor(df_demanda.copy(), num_rows="dynamic", width='stretch')
 
-        fecha_max_hist = st.date_input("Seleccione la fecha máxima histórica:", value=pd.Timestamp('2024-01-01'))
-        fecha_max_hist = pd.Timestamp(fecha_max_hist)
-        if 'fecha' in edited_demanda.columns:
-            edited_demanda['fecha'] = pd.to_datetime(edited_demanda['fecha'], errors='coerce')
+        # --- Guardar el orden original ---
+        df_demanda['orden_original'] = range(len(df_demanda))
 
-        fig_demanda = graficar_demanda_interactivo(df_demanda_esperada=edited_demanda, fecha_max_hist=fecha_max_hist)
-        st.plotly_chart(fig_demanda, config={"responsive": True}, use_container_width=True)
+        # --- Ordenar temporalmente para mostrar últimos registros primero ---
+        df_demanda_sorted = df_demanda.sort_values(['anio','mes','bebida'], ascending=False)
+
+        # --- Seleccionar solo columnas visibles para el editor ---
+        visible_cols = [c for c in df_demanda_sorted.columns if c != 'orden_original']
+
+        # --- Data editor ---
+        edited_demanda = st.data_editor(
+            df_demanda_sorted[visible_cols].copy(),
+            num_rows="dynamic",
+            width='stretch'
+        )
+
+        # --- Recuperar el orden original ---
+        edited_demanda = edited_demanda.assign(
+            orden_original=df_demanda_sorted['orden_original']
+        ).sort_values('orden_original').drop(columns='orden_original')
+
+        # --- Convertir fecha ---
+        # Última fecha histórica oficial del DANE
+        fecha_max_hist = pd.Timestamp('2023-12-31')
+
+        st.markdown(
+            f"""
+            <div style='
+                background-color:#E0F7FA;
+                padding:10px;
+                border-radius:10px;
+                border: 1px solid #00ACC1;
+                width: fit-content;
+                display: inline-block;
+                font-size:16px;
+                font-weight:bold;
+            '>
+                📅 Último dato histórico oficial del DANE: {fecha_max_hist.strftime('%d/%m/%Y')}
+            </div>
+            """, unsafe_allow_html=True
+        )
+
+
+        # --- Gráfico ---
+        
         st.markdown("💡 *Este gráfico muestra la proyección de demanda por producto. Puede comparar la demanda histórica con la proyectada y ajustar manualmente los valores si es necesario.*")
+        fig_demanda = graficar_demanda_interactivo(df_demanda_esperada=edited_demanda)
+        st.plotly_chart(fig_demanda, config={"responsive": True}, use_container_width=True)
+
 
     # Tab 2: Planeación Agregada
     with tab2:
         st.subheader("Planeación Agregada")
-        st.markdown("Esta sección muestra la planeación agregada mensual basada en la demanda proyectada. Permite analizar la producción total requerida por período.")
+        st.markdown(
+            "Esta sección muestra la planeación agregada mensual basada en la demanda proyectada. "
+            "Permite analizar la producción total requerida por período y ajustar los parámetros de costos y capacidad."
+        )
+
+        # =============================
+        # Inputs de usuario para parámetros
+        # =============================
+        st.markdown("### Ajuste de parámetros")
+
+        with st.expander("Ajuste de parámetros", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                Ct = st.number_input("Costo producción (Ct)", value=10.0, step=1.0)
+                Ht = st.number_input("Costo inventario (Ht)", value=10.0, step=1.0)
+                CRt = st.number_input("Costo fuerza laboral regular (CRt)", value=10.0, step=1.0)
+                COt = st.number_input("Costo horas extras (COt)", value=10.0, step=1.0)
+            with col2:
+                PIt = st.number_input("Costo backlog (PIt)", value=1e10, step=1e9, format="%.0f")
+                CW_mas = st.number_input("Costo contratación (CW_mas)", value=100.0, step=1.0)
+                CW_menos = st.number_input("Costo despidos (CW_menos)", value=200.0, step=1.0)
+            with col3:
+                M = st.number_input("Horas por unidad (M)", value=1.0, step=0.1)
+                LR_inicial = st.number_input("Fuerza laboral inicial (LR_inicial)", value=10*160, step=10)
+                inv_seg = st.number_input("Inventario mínimo relativo (inv_seg)", value=0.0, step=0.01)
+
+        # =============================
+        # Llamada a la función con parámetros ajustables
+        # =============================
         df_plan_agg, fig_df_plan_agg = planeacion_agregada_completa(
             demanda_df=edited_demanda,
             inv_in_df=inventario_inicial(),
-            num_per=num_per
+            num_per=num_per,
+            Ct=Ct,
+            Ht=Ht,
+            CRt=CRt,
+            COt=COt,
+            PIt=PIt,
+            CW_mas=CW_mas,
+            CW_menos=CW_menos,
+            M=M,
+            LR_inicial=LR_inicial,
+            inv_seg=inv_seg
         )
-        st.dataframe(df_plan_agg.reset_index(drop=True), width='stretch')
         st.plotly_chart(fig_df_plan_agg, config={"responsive": True}, use_container_width=True)
+        st.dataframe(df_plan_agg.reset_index(drop=True), width='stretch')
 
     # Tab 3: Planeación Desagregada
     with tab3:
         st.subheader("Producción Desagregada por Producto")
+        with st.expander("Ajuste de parámetros de desagregación", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                cost_prod_ = st.number_input(
+                    "Costo producción (Ct)",
+                    min_value=1.0,
+                    value=1.0,
+                    step=1.0,
+                    key="cost_prod_tab3"
+                )
+            with col2:
+                cost_inv_ = st.number_input(
+                    "Costo inventario (Ht)",
+                    min_value=1.0,
+                    value=1.0,
+                    step=1.0,
+                    key="cost_inv_tab3"
+                )
+
+
         st.markdown("Esta planeación distribuye la producción agregada entre los diferentes productos, permitiendo visualizar inventarios finales y producción asignada por producto y período.")
         df_prod, df_inv_desagg, df_resultado, fig_desagg = desagregar_produccion(
             demanda_df=edited_demanda,
             df_inventario_inicial=inventario_inicial(),
             resultados=df_plan_agg,
-            num_per=num_per
+            num_per=num_per,
+            cost_prod=cost_prod_,
+            cost_inv=cost_inv_
         )
+        st.plotly_chart(fig_desagg, config={"responsive": True}, use_container_width=True)
+        
+        st.subheader("Producción desagregada")
         st.dataframe(df_prod.reset_index(drop=True), width='stretch')
+        
         st.subheader("Inventario desagregado")
         st.dataframe(df_inv_desagg.reset_index(drop=True), width='stretch')
-        st.plotly_chart(fig_desagg, config={"responsive": True}, use_container_width=True)
-
-        st.subheader("Gráfico consolidado de producción e inventario")
-        fig_cons = grafica_consolidada(
-            df_prod, df_inv_desagg, df_resultado,
-            productos=edited_demanda['bebida'].unique().tolist()
-        )
-        st.plotly_chart(fig_cons, config={"responsive": True}, use_container_width=True)
 
     # Tab 4: Simulación de Producción
     with tab4:
-        st.subheader("Simulación de Producción (SimPy)")
+        st.subheader("Gráfico consolidado de producción e inventario")
+        fig_cons = grafica_consolidada(
+            df_prod, df_inv_desagg, df_resultado,
+            productos=edited_demanda['bebida'].unique().tolist(),
+            lote=tamano_lote,
+            litros_por_unidad=litros_por_unidad
+        )
+        st.plotly_chart(fig_cons, config={"responsive": True}, use_container_width=True)
+        
+        st.subheader("Simulación de Producción")
         st.markdown(
             "Ejecute la simulación para analizar métricas clave del sistema de producción, "
             "incluyendo WIP, tiempo de ciclo, throughput y utilización de recursos."
         )
 
-        with st.expander("⚙️ Configuración de simulación"):
-            st.write("Ajuste los parámetros del sistema de producción antes de ejecutar la simulación:")
-            st.markdown(f"- **Número de lotes:** {num_lotes}")
-            st.markdown(f"- **Tamaño de lote:** {tamano_lote} botellas")
-            st.markdown(f"- **Equipos de mezcla:** {num_mezcla}")
-            st.markdown(f"- **Equipos de pasteurización:** {num_pasteurizacion}")
-            st.markdown(f"- **Líneas de llenado:** {num_llenado}")
-            st.markdown(f"- **Estaciones de etiquetado:** {num_etiquetado}")
-            st.markdown(f"- **Cámaras de refrigeración:** {num_camaras}")
+        with st.expander("⚙️ Configuración de simulación", expanded=True):
+            num_mezcla = st.slider("Equipos de mezcla:", min_value=1, max_value=10, value=1, step=1)
+            num_pasteurizacion = st.slider("Equipos de pasteurización:", min_value=1, max_value=10, value=1, step=1)
+            num_llenado = st.slider("Líneas de llenado:", min_value=1, max_value=10, value=1, step=1)
+            num_etiquetado = st.slider("Estaciones de etiquetado:", min_value=1, max_value=10, value=1, step=1)
+            num_camaras = st.slider("Cámaras de refrigeración:", min_value=1, max_value=10, value=1, step=1)
 
         if st.button("🚀 Ejecutar simulación"):
             with st.spinner("Simulando producción según el plan desagregado..."):
