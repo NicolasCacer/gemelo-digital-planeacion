@@ -4,3 +4,4 @@ numpy
 simpy
 pulp
 statsmodels
+plotly
