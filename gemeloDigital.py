@@ -447,11 +447,11 @@ def dashboard_streamlit():
             st.markdown("### ⚙️ Capacidad de estaciones")
             col1, col2, col3 = st.columns(3)
             with col1:
-                num_mezcla = st.number_input("Equipos de mezcla", 1, 20, 2, key="sim_num_mezcla")
-                num_pasteurizacion = st.number_input("Pasteurizadores", 1, 20, 2, key="sim_num_pasteurizacion")
+                num_mezcla = st.number_input("Equipos de mezcla", 1, 20, 1, key="sim_num_mezcla")
+                num_pasteurizacion = st.number_input("Pasteurizadores", 1, 20, 1, key="sim_num_pasteurizacion")
             with col2:
-                num_llenado = st.number_input("Líneas de llenado", 1, 20, 2, key="sim_num_llenado")
-                num_etiquetado = st.number_input("Estaciones de etiquetado", 1, 20, 2, key="sim_num_etiquetado")
+                num_llenado = st.number_input("Líneas de llenado", 1, 20, 1, key="sim_num_llenado")
+                num_etiquetado = st.number_input("Estaciones de etiquetado", 1, 20, 1, key="sim_num_etiquetado")
             with col3:
                 num_camaras = st.number_input("Cámaras de refrigeración", 1, 20, 1, key="sim_num_camaras")
 
@@ -587,7 +587,7 @@ def dashboard_streamlit():
                         # === RESUMEN DE LOTES ===
                         df_lotes_resumen = (
                             df_sim_resultados
-                            .groupby(["Bebida", "Mes"])
+                            .groupby(["Bebida", "Periodo"])
                             .agg(
                                 Cantidad_lotes=("Lote", "count"),
                                 Litros_fabricados=("Tamano_botellas", "sum")
@@ -595,7 +595,7 @@ def dashboard_streamlit():
                             .reset_index()
                         )
                         df_lotes_resumen = df_lotes_resumen.sort_values(
-                            ['Mes', 'Cantidad_lotes', 'Bebida'],
+                            ['Periodo', 'Cantidad_lotes', 'Bebida'],
                             ascending=[True, False, True]
                         ).reset_index(drop=True)
 
@@ -644,7 +644,7 @@ def grafica_simulacion_resumen(df_lotes_resumen, modo="volumen"):
     df = df_lotes_resumen.copy()
 
     # Pivotar para tener bebidas como filas y meses como columnas
-    pivot = df.pivot(index="Bebida", columns="Mes", values="Litros_fabricados").fillna(0)
+    pivot = df.pivot(index="Bebida", columns="Periodo", values="Litros_fabricados").fillna(0)
 
     if modo == "porcentaje":
         pivot = pivot.div(pivot.sum(axis=0), axis=1) * 100
