@@ -83,24 +83,8 @@ df_share = df_share[~df_share['bebida'].isin(bebidas_a_eliminar)]
 
 df_EMMET_2024['ventas_proporcion'] = df_EMMET_2024['ventas_reales'] / df_EMMET_2024['ventas_reales'].sum()
 
-# Inventario total al 31 de dic 2023
-I_final_2023 = df_EAM_2023["Inventario_cantidad_31_dic"].sum()
 
-# Índice promedio y de enero 2024 (EMMET)
-promedio_prod = df_EMMET_2024["produccion_real"].mean()
-enero_prod = df_EMMET_2024.loc[df_EMMET_2024["mes"] == 1, "produccion_real"].values[0]
-
-# Inventario inicial estimado (enero 2024)
-I_inicial_estimado = I_final_2023 * (enero_prod / promedio_prod)
-
-# Ajuste por participación del 1%
-I_inicial_1pct = I_inicial_estimado * 0.002
-
-# Distribuir por share de bebidas
-df_inventario_inicial = df_share.copy()
-df_inventario_inicial["inventario_inicial"] = df_inventario_inicial["share"] * I_inicial_1pct
-
-def generar_demanda_sarima(EAM_data = EAM_data, df_EMMET_2024 = df_EMMET_2024, df_share = df_share, n_periodos = 3):
+def generar_demanda_sarima(EAM_data = EAM_data, df_EMMET_2024 = df_EMMET_2024, df_share = df_share, n_periodos = 3, porc_part = 0.01):
     resultados = []
 
     # --- Construir datos históricos ---
@@ -113,7 +97,7 @@ def generar_demanda_sarima(EAM_data = EAM_data, df_EMMET_2024 = df_EMMET_2024, d
 
         for _, row_prod in df_share.iterrows():
             for _, row_mes in df_mensual.iterrows():
-                demanda = row_mes['ventas_mes_total'] * row_prod['share'] * 0.01
+                demanda = row_mes['ventas_mes_total'] * row_prod['share'] * porc_part
                 resultados.append({
                     'anio': anio,
                     'mes': int(row_mes['mes']),
@@ -237,7 +221,7 @@ def graficar_demanda_interactivo(df_demanda_esperada, anio_inicio=None, anio_fin
           x=0.5,
           xanchor='center',
           yanchor='top',
-          font=dict(family='Arial, sans-serif', size=24, color='darkblue')
+          font=dict(family='Arial, sans-serif', size=24)
         ),
         xaxis_title='Mes-Año',
         yaxis_title=f'Demanda esperada (x{escala} litros)',
@@ -253,7 +237,7 @@ def graficar_demanda_interactivo(df_demanda_esperada, anio_inicio=None, anio_fin
 
     return fig
 
-def inventario_inicial():
+def inventario_inicial(porc_part = 0.01):
     # Inventario total al 31 de dic 2023
     I_final_2023 = df_EAM_2023["Inventario_cantidad_31_dic"].sum()
 
@@ -265,7 +249,7 @@ def inventario_inicial():
     I_inicial_estimado = I_final_2023 * (enero_prod / promedio_prod)
 
     # Ajuste por participación del 1%
-    I_inicial_1pct = I_inicial_estimado * 0.002
+    I_inicial_1pct = I_inicial_estimado * porc_part/5
 
     # Distribuir por share de bebidas
     df_inventario_inicial = df_share.copy()

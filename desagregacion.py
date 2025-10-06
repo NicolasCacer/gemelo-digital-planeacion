@@ -242,7 +242,7 @@ def grafica_consolidada(df_prod, df_inv, df_resultado, productos, litros_por_uni
             mode='lines+markers',
             name=f'Demanda total {bebida}',
             visible=False,
-            line=dict(width=4, color='rgba(0,150,100,1)', shape='spline'),
+            line=dict(width=4, color='purple', shape='spline'),
             marker=dict(size=8, color='rgba(0,120,80,1)', line=dict(width=1, color='white')),
             hovertemplate='Demanda total: %{y:.1f} lotes<extra></extra>'
         ))
@@ -273,7 +273,6 @@ def grafica_consolidada(df_prod, df_inv, df_resultado, productos, litros_por_uni
             y=1.02,          # casi a la altura del título
             xanchor='right',
             yanchor='bottom',  # mide desde la base del botón
-            bgcolor='rgba(245,245,245,0.9)',
             bordercolor='lightgray',
             borderwidth=1
         )],
@@ -291,16 +290,13 @@ def grafica_consolidada(df_prod, df_inv, df_resultado, productos, litros_por_uni
             'xanchor': 'center',
             'yanchor': 'top'
         },
-        template='plotly_white',
         height=620,
         hovermode='x unified',
         legend=dict(
             y=-0.18, x=0.5, xanchor='center', yanchor='bottom',
-            orientation='h', bgcolor='rgba(255,255,255,0.8)'
+            orientation='h'
         ),
         barmode='stack',
-        plot_bgcolor='rgba(250,250,250,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family='Arial', size=13, color='#333')
     )
 
