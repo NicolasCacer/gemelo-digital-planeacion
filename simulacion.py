@@ -16,7 +16,8 @@ def simular_produccion(df_desagregacion=None,
                        tiempo_etiquetado=(20,20),
                        tiempo_almacenamiento=(0,0),
                        n_iter=1,
-                       turnos_por_dia=3
+                       turnos_por_dia=3,
+                       df_plan_agg = None
                        ):
 
     resultados_totales = []

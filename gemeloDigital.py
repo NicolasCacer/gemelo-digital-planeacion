@@ -250,8 +250,11 @@ def dashboard_streamlit():
             # 🧮 PARÁMETROS TÉCNICOS
             # =========================
             st.markdown("#### 🧮 Parámetros técnicos")
-            M = st.number_input("Horas requeridas por unidad (M)", value=1.0, step=0.1,
-                help="Cuántas horas-hombre se necesitan para producir una unidad de producto.")
+            col1, col2= st.columns(2)
+            with col1:
+                M = st.number_input("Horas requeridas por unidad (M)", value=1.0, step=0.1, help="Cuántas horas-hombre se necesitan para producir una unidad de producto.")
+            with col2:
+                max_des_contrat = st.number_input("Máximo de contratación/despido mensual", min_value = 0, value=20, step=1)
 
 
 
@@ -270,8 +273,13 @@ def dashboard_streamlit():
             CW_mas=CW_mas,
             CW_menos=CW_menos,
             M=M,
-            LR_inicial=LR_inicial,
-            inv_seg=inv_seg
+            emp_in = trabajadores_por_turno*turnos_por_dia,
+            horas_turno= horas_por_turno,
+            inv_seg=inv_seg,
+            turnos_dia = turnos_por_dia,
+            dias_mes = dias_mes,
+            eficiencia = (eficiencia-ausentismo)/100,
+            delta_trabajadores = max_des_contrat
         )
         st.plotly_chart(fig_df_plan_agg, config={"responsive": True}, use_container_width=True)
         st.dataframe(df_plan_agg.reset_index(drop=True), width='stretch')
@@ -481,7 +489,8 @@ def dashboard_streamlit():
                         tiempo_etiquetado=tiempo_etiquetado,
                         tiempo_almacenamiento=tiempo_almacenamiento,
                         n_iter=n_iter,
-                        turnos_por_dia=turnos_por_dia
+                        turnos_por_dia=turnos_por_dia,
+                        df_plan_agg = df_plan_agg
                     )
                 except RuntimeError as e:
                     st.error(f"⚠️ Simulación detenida: {e}")

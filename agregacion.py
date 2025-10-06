@@ -7,149 +7,101 @@ def planeacion_agregada_completa(
     inv_in_df,
     num_per,
     Ct=10, Ht=10, CRt=10, COt=10, PIt=1e10, CW_mas=100, CW_menos=200,
-    M=1, LR_inicial = 10 * 160, inv_seg= 0.0 
+    M=1, horas_turno=8, inv_seg= 0.0, emp_in = 10, turnos_dia = 3, dias_mes = 30, eficiencia = 0.9, delta_trabajadores = 100
 ):
     df_demanda_mensual = demanda_df.iloc[-num_per*5:]
-
-    # Planeación Agregada
     anio_base = df_demanda_mensual['anio'].min()
-
-    # Calcular mes continuo
     df_demanda_mensual = df_demanda_mensual.assign(
         mes_continuo=lambda x: (x['anio'] - anio_base) * 12 + x['mes']
     )
-
-    # Sumar demanda por mes_continuo (todas las bebidas)
     demanda_por_mes = (
-        df_demanda_mensual
-        .groupby('mes_continuo')['demanda_esperada']
-        .sum()
-        .round(2)
-        .to_dict()
+        df_demanda_mensual.groupby('mes_continuo')['demanda_esperada']
+        .sum().round(2).to_dict()
     )
 
-    # ===============================
-    # 1) PARÁMETROS
     # ===============================
     demanda_t = demanda_por_mes
     periodos = sorted(list(demanda_t.keys()))
     primer_periodo = min(periodos)
     inv_inicial = inv_in_df['inventario_inicial'].sum()
+    horas_por_empleado = horas_turno * turnos_dia * dias_mes * eficiencia
+ # ejemplo, ajustar según caso
+    empleados_inicial = emp_in
 
-    Ct = 80
-    M = 1          # cuantas horas-hombre para hacer 1 unidad
-    Ht = 2.70
-    PIt = 1E99     # backlog prohibido grande
-    CRt = 12
-    COt = 18
-    CW_mas = 10
-    CW_menos = 37
-    LR_inicial = LR_inicial  # ya viene por argumento (ej: 1600)
+    Ct = 80; M = 1; Ht = 2.70; PIt = 1E99
+    CRt = 12; COt = 18; CW_mas = 10; CW_menos = 37
+    inv_min_t = {t: inv_seg*demanda_t[t] for t in periodos}
+    max_contratacion = delta_trabajadores
+    max_despidos = delta_trabajadores
 
-    # Inventario mínimo proporcional a demanda mensual
-    inv_min_t = {t: inv_seg*demanda_t[t] for t in periodos}  # p.e. 5% de la demanda
-
-    # Máximos de contratación/despidos por periodo
-    max_contratacion = 50000
-    max_despidos = 50000
-
-    # ===============================
-    # 2) DEMANDA NETA
-    # ===============================
+    # Demanda neta
     demanda_neta_t = demanda_t.copy()
     demanda_neta_t[primer_periodo] = max(demanda_t[primer_periodo] - inv_inicial, 0)
 
-    # ===============================
-    # 3) MODELO
     # ===============================
     plan_agg_flow = LpProblem("Minimizar_costos_agregados_flujo", LpMinimize)
 
     # Variables de decisión
     P = LpVariable.dicts("P", periodos, lowBound=0)
     I = LpVariable.dicts("I", periodos, lowBound=0)
-    S = LpVariable.dicts("S", periodos, lowBound=0)  # backlog
-    LR = LpVariable.dicts("LR", periodos, lowBound=0)
+    S = LpVariable.dicts("S", periodos, lowBound=0)
     LO = LpVariable.dicts("LO", periodos, lowBound=0)
-    W_mas = LpVariable.dicts("W_mas", periodos, lowBound=0, upBound=max_contratacion)
-    W_menos = LpVariable.dicts("W_menos", periodos, lowBound=0, upBound=max_despidos)
-
-    # Auxiliares
-    NI = LpVariable.dicts("NI", periodos)          # inventario neto (puede ser negativo)
+    W_mas = LpVariable.dicts("W_mas", periodos, lowBound=0, upBound=max_contratacion, cat="Integer")
+    W_menos = LpVariable.dicts("W_menos", periodos, lowBound=0, upBound=max_despidos, cat="Integer")
+    Empleados = LpVariable.dicts("Empleados", periodos, lowBound=0, cat="Integer")
+    LR = LpVariable.dicts("LR", periodos, lowBound=0)  # horas regulares
+    NI = LpVariable.dicts("NI", periodos)
     LU = LpVariable.dicts("LU", periodos, lowBound=0)
 
     # ===============================
-    # 4) FUNCIÓN OBJETIVO
-    # ===============================
     plan_agg_flow += lpSum(
-        Ct*P[t] + 
-        CRt*LR[t] + 
-        COt*LO[t] + 
-        Ht*I[t] + 
-        PIt*S[t] + 
-        CW_mas*W_mas[t] + 
-        CW_menos*W_menos[t]
-        for t in periodos
+        Ct*P[t] + CRt*LR[t] + COt*LO[t] + Ht*I[t] + PIt*S[t] +
+        CW_mas*W_mas[t] + CW_menos*W_menos[t] for t in periodos
     )
 
     # ===============================
-    # 5) RESTRICCIONES
-    # ===============================
-    # Balance inventario neto usando demanda_neta para el primer mes
     for t in periodos:
+        # Inventario neto
         if t == primer_periodo:
-            plan_agg_flow += NI[t] == 0 + P[t] - demanda_neta_t[t], f"NI_ini_{t}"
+            plan_agg_flow += NI[t] == P[t] - demanda_neta_t[t], f"NI_ini_{t}"
         else:
             plan_agg_flow += NI[t] == NI[t-1] + P[t] - demanda_t[t], f"NI_balance_{t}"
-
-    # Relación NI = I - S
-    for t in periodos:
         plan_agg_flow += NI[t] == I[t] - S[t], f"NI_def_{t}"
 
-    # Balance de horas (uso de horas regulares + horas extras = horas necesarias para producir)
-    for t in periodos:
+        # Horas necesarias
         plan_agg_flow += LU[t] + LO[t] == M * P[t], f"horas_balance_{t}"
-
-    # LU no puede exceder LR disponible (uso de horas regulares limitado)
-    for t in periodos:
         plan_agg_flow += LU[t] <= LR[t], f"LU_no_mas_LR_{t}"
+        plan_agg_flow += I[t] >= inv_min_t[t], f"inv_min_{t}"
 
-    # Evolución fuerza laboral: inicializar con primer_periodo (corrección importante)
-    for t in periodos:
-        if t == primer_periodo:
-            plan_agg_flow += LR[t] == LR_inicial + W_mas[t] - W_menos[t], f"LR_ini_{t}"
-        else:
-            plan_agg_flow += LR[t] == LR[t-1] + W_mas[t] - W_menos[t], f"LR_balance_{t}"
-
-    # Inventario mínimo por periodo
-    for t in periodos:
-        plan_agg_flow += I[t] >= inv_seg*inv_min_t[t], f"inv_min_{t}"
-
-    # Las horas regulares + extras limitan producción
-    for t in periodos:
+        # Capacidad por horas
         plan_agg_flow += P[t] <= LR[t]/M + LO[t]/M, f"capacidad_horas_{t}"
 
     # ===============================
-    # 6) SOLVER
+    for t in periodos:
+        # Evolución empleados
+        if t == primer_periodo:
+            plan_agg_flow += Empleados[t] == empleados_inicial + W_mas[t] - W_menos[t], f"Empleados_ini_{t}"
+            plan_agg_flow += W_menos[t] <= empleados_inicial, f"Despidos_max_ini_{t}"
+        else:
+            plan_agg_flow += Empleados[t] == Empleados[t-1] + W_mas[t] - W_menos[t], f"Empleados_balance_{t}"
+            plan_agg_flow += W_menos[t] <= Empleados[t-1], f"Despidos_max_{t}"
+        plan_agg_flow += LR[t] == Empleados[t] * horas_por_empleado, f"LR_def_{t}"
+        plan_agg_flow += Empleados[t] >= 0, f"Empleados_no_neg_{t}"
+
+    for t in periodos:
+        plan_agg_flow += LR[t] == Empleados[t] * horas_por_empleado
     # ===============================
     plan_agg_flow.solve()
     costo_total = value(plan_agg_flow.objective)
 
-
     # ===============================
-    # 7) RESULTADOS EN TABLA MEJORADA
-    # ===============================
-    inv_inicial_periodo = inv_inicial  # Inventario inicial general
-    inv_inicial_list = []
-    inv_final_list = []
-
+    # Resultados
+    inv_inicial_list = []; inv_final_list = []
     for t in periodos:
-        # Inventario inicial de cada periodo = inventario final del periodo anterior
         if t == primer_periodo:
-            inv_inicial_list.append(inv_inicial_periodo)
+            inv_inicial_list.append(inv_inicial)
         else:
             inv_inicial_list.append(inv_final_list[-1])
-        
-        # Inventario final = inventario inicial + producción - demanda
         inv_final = inv_inicial_list[-1] + P[t].varValue - demanda_t[t]
         inv_final_list.append(inv_final)
 
@@ -165,11 +117,11 @@ def planeacion_agregada_completa(
         "Horas_Extras": [LO[t].varValue for t in periodos],
         "Contratación": [W_mas[t].varValue for t in periodos],
         "Despidos": [W_menos[t].varValue for t in periodos],
+        "Empleados": [Empleados[t].varValue for t in periodos],
         "Inventario_Neto": [NI[t].varValue for t in periodos],
         "Uso_Horas": [LU[t].varValue for t in periodos],
     })
     resultados = resultados.round(1)
-
 
     # ===============================
     # 8) GRAFICAR (producción + inventario apilados)
