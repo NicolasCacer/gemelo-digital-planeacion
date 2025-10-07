@@ -53,7 +53,7 @@ def dashboard_streamlit():
         
         porc_part = st.slider(
             "💸 Participación de mercado (%)",
-            min_value=0.005,
+            min_value=0.01,
             max_value=0.5,
             value=0.01,
             step=0.01,
