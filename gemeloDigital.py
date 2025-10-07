@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from demanda import generar_demanda_sarima, graficar_demanda_interactivo
-from agregacion import planeacion_agregada_completa
+from agregacion import graficar_plan_completo, planeacion_agregada_completa
 from demanda import inventario_inicial
 from desagregacion import desagregar_produccion, grafica_consolidada
 from simulacion import simular_produccion  # Función encapsulada de SimPy
@@ -281,8 +281,39 @@ def dashboard_streamlit():
             eficiencia = (eficiencia-ausentismo)/100,
             delta_trabajadores = max_des_contrat
         )
-        st.plotly_chart(fig_df_plan_agg, config={"responsive": True}, use_container_width=True)
-        st.dataframe(df_plan_agg.reset_index(drop=True), width='stretch')
+        # =========================
+        # Título de la sección
+        # =========================
+        st.header("📦 Plan Agregado y Análisis de Litros/Horas")
+
+        # =========================
+        # Gráfico principal (fig_df_plan_agg)
+        # =========================
+        st.plotly_chart(
+            fig_df_plan_agg,
+            config={"responsive": True},
+            use_container_width=True
+        )
+
+        # =========================
+        # Dataframe
+        # =========================
+        st.subheader("✅ Tabla de Resultados del Plan Agregado")
+        st.dataframe(
+            df_plan_agg.reset_index(drop=True),
+            use_container_width=True  # ancho completo
+        )
+
+        # =========================
+        # Gráfico litros vs horas
+        # =========================
+        figs = graficar_plan_completo(df_plan_agg)
+
+        st.plotly_chart(figs['litros'], use_container_width=True)
+        st.plotly_chart(figs['horas'], use_container_width=True)
+        st.plotly_chart(figs['empleados'], use_container_width=True)
+
+
 
     # Tab 3: Planeación Desagregada
     with tab3:

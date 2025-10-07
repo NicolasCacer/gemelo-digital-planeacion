@@ -163,3 +163,111 @@ def planeacion_agregada_completa(
 
 
     return resultados, fig
+
+import plotly.graph_objects as go
+
+def graficar_plan_completo(resultados):
+    """
+    Genera 3 figuras separadas a partir del DataFrame resultados:
+    1. Litros: Demanda, Demanda_Neta, Producción, Inventarios, Backlog, Inventario_Neto
+    2. Horas: Horas_Regulares, Horas_Extras, Uso_Horas
+    3. Empleados: Empleados, Contratación, Despidos
+
+    Args:
+        resultados (pd.DataFrame): DataFrame con las columnas esperadas.
+
+    Returns:
+        dict: {'litros': fig1, 'horas': fig2, 'empleados': fig3}
+    """
+
+    figuras = {}
+
+    # -------------------
+    # Litros
+    # -------------------
+    litros_cols = ["Demanda", "Demanda_Neta", "Producción", "Inventario_Inicial",
+                   "Inventario_Final", "Backlog", "Inventario_Neto"]
+    colores_litros = ["green", "darkgreen", "lightblue", "darkorange", "orange", "red", "purple"]
+
+    fig_litros = go.Figure()
+    for col, color in zip(litros_cols, colores_litros):
+        if col in resultados.columns:
+            fig_litros.add_trace(go.Scatter(
+                x=resultados["Periodo"],
+                y=resultados[col],
+                mode="lines+markers",
+                name=col,
+                line=dict(color=color, width=2),
+                marker=dict(size=6)
+            ))
+
+    fig_litros.update_layout(
+        title="Litros por Periodo",
+        xaxis_title="Periodo (meses)",
+        yaxis_title="Litros",
+        template="plotly_white",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01)
+    )
+
+    figuras['litros'] = fig_litros
+
+    # -------------------
+    # Horas
+    # -------------------
+    horas_cols = ["Horas_Regulares", "Horas_Extras", "Uso_Horas"]
+    colores_horas = ["green", "purple", "brown"]
+
+    fig_horas = go.Figure()
+    for col, color in zip(horas_cols, colores_horas):
+        if col in resultados.columns:
+            fig_horas.add_trace(go.Scatter(
+                x=resultados["Periodo"],
+                y=resultados[col],
+                mode="lines+markers",
+                name=col,
+                line=dict(color=color, width=2),
+                marker=dict(size=6)
+            ))
+
+    fig_horas.update_layout(
+        title="Horas por Periodo",
+        xaxis_title="Periodo (meses)",
+        yaxis_title="Horas",
+        template="plotly_white",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01)
+    )
+
+    figuras['horas'] = fig_horas
+
+    # -------------------
+    # Empleados
+    # -------------------
+    empleados_cols = ["Empleados", "Contratación", "Despidos"]
+    colores_emp = ["brown", "blue", "red"]
+
+    fig_emp = go.Figure()
+    for col, color in zip(empleados_cols, colores_emp):
+        if col in resultados.columns:
+            fig_emp.add_trace(go.Scatter(
+                x=resultados["Periodo"],
+                y=resultados[col],
+                mode="lines+markers",
+                name=col,
+                line=dict(color=color, width=2),
+                marker=dict(size=6)
+            ))
+
+    fig_emp.update_layout(
+        title="Empleados por Periodo",
+        xaxis_title="Periodo (meses)",
+        yaxis_title="Cantidad de Empleados",
+        template="plotly_white",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01)
+    )
+
+    figuras['empleados'] = fig_emp
+
+    return figuras
